@@ -1,5 +1,5 @@
-import { LitElement, css, html } from 'lit'
-import litLogo from './assets/lit.svg'
+import { LitElement, css, html } from 'lit';
+import litLogo from './assets/lit.svg';
 
 /**
  * An example element.
@@ -19,13 +19,13 @@ export class MyElement extends LitElement {
        * The number of times the button has been clicked.
        */
       count: { type: Number },
-    }
+    };
   }
 
   constructor() {
-    super()
-    this.docsHint = 'Click on the Vite and Lit logos to learn more'
-    this.count = 0
+    super();
+    this.docsHint = 'Click on the Vite and Lit logos to learn more';
+    this.count = 0;
   }
 
   render() {
@@ -45,11 +45,58 @@ export class MyElement extends LitElement {
         </button>
       </div>
       <p class="read-the-docs">${this.docsHint}</p>
-    `
+    `;
   }
 
   _onClick() {
-    this.count++
+    let openRequest = indexedDB.open('VeloStore');
+
+    openRequest.onsuccess((e) => {
+      console.log('Success: ' + e);
+      let db = openRequest.result;
+      db.onversionchange = function () {
+        db.close();
+        alert('Database is outdated, please reload the page.');
+
+        // window.location.reload();
+      };
+
+      //Lets do some Indexed DB Stuff!
+      let transaction = db.transaction('books', 'readwrite'); // (1)
+
+      // get an object store to operate on it
+      let books = transaction.objectStore('books'); // (2)
+
+      let book = {
+        id: 'js',
+        price: 10,
+        created: new Date(),
+      };
+
+      let request = books.add(book); // (3)
+    });
+    openRequest.onupgradeneeded((request, changeevent) => {
+      console.warn('Database Schema Upgrade Needed :(');
+      console.log('Old Version: ' + changeevent.oldVersion);
+
+      let db = openRequest.result;
+
+      //Create my Object Store (Table). This can only be done in an 'upgrade needed' event.
+      !db.objectStoreNames.contains('books') &&
+        db.createObjectStore('books', {
+          keyPath: 'isbn',
+          autoIncrement: false,
+        });
+    });
+    openRequest.onerror = function () {
+      console.error('Error', openRequest.error);
+    };
+    openRequest.onblocked = function () {
+      // this event shouldn't trigger if we handle onversionchange correctly
+      // it means that there's another open connection to the same database
+      // and it wasn't closed after db.onversionchange triggered for it
+    };
+    console.log('Connection Request Opened');
   }
 
   static get styles() {
@@ -122,8 +169,8 @@ export class MyElement extends LitElement {
           background-color: #f9f9f9;
         }
       }
-    `
+    `;
   }
 }
 
-window.customElements.define('my-element', MyElement)
+window.customElements.define('my-element', MyElement);
