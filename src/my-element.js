@@ -1,7 +1,7 @@
-import { LitElement, css, html } from 'lit';
-import '@vaadin/button';
-import {Notification} from '@vaadin/notification'
-import litLogo from './assets/lit.svg';
+import { LitElement, css, html } from "lit";
+import "@vaadin/button";
+import { Notification } from "@vaadin/notification";
+import litLogo from "./assets/lit.svg";
 
 /**
  * An example element.
@@ -21,13 +21,16 @@ export class MyElement extends LitElement {
        * The number of times the button has been clicked.
        */
       count: { type: Number },
+      isDBReady: { type: Boolean },
     };
   }
 
   constructor() {
     super();
-    this.docsHint = 'Click on the Vite and Lit logos to learn more';
+    this.docsHint = "Click on the Vite and Lit logos to learn more";
     this.count = 0;
+    this.isDBReady = false;
+    this.db = null;
   }
 
   render() {
@@ -43,71 +46,79 @@ export class MyElement extends LitElement {
       <slot></slot>
       <div class="card">
         <button @click=${this._onClick} part="button">
-          count is ${this.count}
+          Database is <span class="${
+            this.isDBReady ? "dbReady" : "dbNotReady"
+          }">${this.isDBReady ? "ready" : "not ready yet"}.</span>
         </button>
       </div>
-      <p class="read-the-docs">${this.docsHint}</p>
+      <div class="card">
+        <vaadin-button @click=${this.save} part="button">
+          Save Item To DB
+        </button>
+      </div>
     `;
   }
 
   _onClick() {
-    let openRequest = indexedDB.open('VeloStore');
+    let openRequest = indexedDB.open("VeloStore");
 
-    openRequest.onsuccess((e) => {
-      console.log('Success: ' + e);
-      let db = openRequest.result;
-      db.onversionchange = function () {
-        db.close();
-        alert('Database is outdated, please reload the page.');
-
-        // window.location.reload();
+    openRequest.onsuccess = (e) => {
+      console.log("Success: " + e);
+      this.db = openRequest.result;
+      this.db.onversionchange = function () {
+        this.db.close();
+        Notification.show("Database is outdated, please reload the page.",{theme:"Error"})
+        // alert("Database is outdated, please reload the page.");
       };
 
-      //Lets do some Indexed DB Stuff!
-      let transaction = db.transaction('books', 'readwrite'); // (1)
+      this.isDBReady = true;
+    };
+    openRequest.onupgradeneeded = (changeevent) => {
+      console.warn("Database Schema Upgrade Needed :(");
+      console.log("Old Version: " + changeevent.oldVersion);
 
-      // get an object store to operate on it
-      let books = transaction.objectStore('books'); // (2)
-
-      let book = {
-        id: 'js',
-        price: 10,
-        created: new Date(),
-      };
-
-      let request = books.add(book); // (3)
-    });
-    openRequest.onupgradeneeded((request, changeevent) => {
-      console.warn('Database Schema Upgrade Needed :(');
-      console.log('Old Version: ' + changeevent.oldVersion);
-
-      let db = openRequest.result;
+      this.db = openRequest.result;
 
       //Create my Object Store (Table). This can only be done in an 'upgrade needed' event.
-      !db.objectStoreNames.contains('books') &&
-        db.createObjectStore('books', {
-          keyPath: 'isbn',
-          autoIncrement: false,
+      !this.db.objectStoreNames.contains("books") &&
+      this.db.createObjectStore("books", {
+          keyPath: "isbn",
+          autoIncrement: true,
         });
-    });
+    };
     openRequest.onerror = function () {
-      console.error('Error', openRequest.error);
+      console.error("Error", openRequest.error);
+      Notification.show("Error has occurred in opening the database >> Full Error in console");
     };
     openRequest.onblocked = function () {
       // this event shouldn't trigger if we handle onversionchange correctly
       // it means that there's another open connection to the same database
       // and it wasn't closed after db.onversionchange triggered for it
     };
-    console.log('Connection Request Opened');
+    console.log("Connection Request Opened");
   }
 
-  async save(){
+  async save() {
+    //Lets do some Indexed DB Stuff!
+    let transaction = this.db.transaction("books", "readwrite"); // (1)
 
+    // get an object store to operate on it
+    let books = transaction.objectStore("books"); // (2)
+
+    let book = {
+      id: "js",
+      price: 10,
+      created: new Date(),
+    };
+
+    let request = books.add(book); // (3)
+
+    if(request){
+      Notification.show("Successfully Added!",{theme:"Contrast"})
+    }
   }
 
-  async addToStore(){
-
-  }
+  async addToStore(data) {}
   static get styles() {
     return css`
       :host {
@@ -116,11 +127,16 @@ export class MyElement extends LitElement {
         padding: 2rem;
         text-align: center;
       }
-      
-      .readyDB{
-        
-      }
 
+      .dbReady {
+        color: green;
+      }
+      .dbReady::after {
+        content: "🙌🏽";
+      }
+      .dbNotReady {
+        color: red;
+      }
       .logo {
         height: 6em;
         padding: 1.5em;
@@ -186,4 +202,4 @@ export class MyElement extends LitElement {
   }
 }
 
-window.customElements.define('my-element', MyElement);
+window.customElements.define("my-element", MyElement);
