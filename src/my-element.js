@@ -1,4 +1,6 @@
 import { LitElement, css, html } from 'lit';
+import '@vaadin/button';
+import {Notification} from '@vaadin/notification'
 import litLogo from './assets/lit.svg';
 
 /**
@@ -99,6 +101,13 @@ export class MyElement extends LitElement {
     console.log('Connection Request Opened');
   }
 
+  async save(){
+
+  }
+
+  async addToStore(){
+
+  }
   static get styles() {
     return css`
       :host {
@@ -106,6 +115,10 @@ export class MyElement extends LitElement {
         margin: 0 auto;
         padding: 2rem;
         text-align: center;
+      }
+      
+      .readyDB{
+        
       }
 
       .logo {
