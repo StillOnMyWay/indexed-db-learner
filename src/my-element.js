@@ -26,6 +26,7 @@ export class MyElement extends LitElement {
        * The number of times the button has been clicked.
        */
       count: { type: Number },
+      selectedBooks: { type: Array },
       isDBReady: { type: Boolean },
       /**
        * @type {Array}
@@ -40,7 +41,7 @@ export class MyElement extends LitElement {
     this.count = 0;
     this.isDBReady = false;
     this.db = null;
-    this.bookList = [];
+    this.bookList = [], this.selectedBooks = [];
   }
 
   render() {
@@ -55,24 +56,25 @@ export class MyElement extends LitElement {
       </div>
       <slot></slot>
       <div class="card">
-        <button @click=${this._onClick} part="button">
+        <vaadin-button @click=${this._onClick} part="button">
           Database is <span class="${this.isDBReady ? "dbReady" : "dbNotReady"
       }">${this.isDBReady ? "ready" : "not ready yet"}.</span>
-        </button>
+        </vaadin-button>
       </div>
       <div class="card">
         <vaadin-button @click=${this.saveToDB} part="button">
-          Save Item To DB
+          Save New Item To DB
         </button>
       </div>
-      <vaadin-list-box selected="2">
-      ${this.bookList.map(item => { return html`<vaadin-item>${item.isbn} - ${item.title}</vaadin-item>` })}
+      ${this.selectedBooks.length > 0 ? html`<vaadin-button @click=${(e) => this.deleteById(e, this.selectedBooks)} theme="primary error">Delete ${this.selectedBooks.length} Books ?</vaadin-button>      ` : ''}
+      <vaadin-list-box multiple @items-changed=${this.itemsChanged} @selected-values-changed=${this.itemsChanged}>
+      ${this.bookList.map(item => { return html`<vaadin-item data-id="${item.isbn}">${item.isbn} - <i>${item.title ?? "no title"}</i>. Available for $${item.price}.00 </vaadin-item>` })}
       </vaadin-list-box>
   `;
   }
 
   _onClick() {
-    let openRequest = indexedDB.open("VeloStore");
+    let openRequest = indexedDB.open("VeloStore", 2);
 
     openRequest.onsuccess = (e) => {
       console.log("Success: " + e);
@@ -95,7 +97,7 @@ export class MyElement extends LitElement {
         this.db.createObjectStore("books", {
           keyPath: "isbn",
           autoIncrement: true,
-        });
+        }).createIndex('prixe_idx', 'price').objectStore.createIndex('name_idx', "title", { unique: false });
     };
     openRequest.onerror = function () {
       console.error("Error", openRequest.error);
@@ -161,16 +163,73 @@ export class MyElement extends LitElement {
    * 
    * @param {IDBObjectStore} store 
    */
-  async getAllItemsFromStore(store) {
+  getAllItemsFromStore(store) {
 
     const request = store.getAll();
 
-    request.onsuccess = e =>{
+    request.onsuccess = e => {
       console.log("Successfully added");
       this.bookList = request.result;
       console.log(this.bookList);
       this.requestUpdate();
     }
+  }
+
+
+  /**
+   * 
+   * @param {IDBObjectStore} store 
+   */
+  async getItemByIndex(store, index) {
+
+    const request = store.getAll(index);
+
+    request.onsuccess = e => {
+      console.log("Successfully added");
+      this.bookList = request.result;
+      console.log(this.bookList);
+      this.requestUpdate();
+    }
+  }
+
+  /**
+   * @param {MouseEvent} event - The Click Event of the button
+   * @param {Number | Number[]} id - The ID or IDs to be deleted
+   */
+  deleteById(event, id) {
+    console.warn(`A request has come in from a very concerning Mr. Chris to delete ${id.length} books. These books are ${id}.`)
+
+    let deleteTransaction = this.db.transaction("books", 'readwrite');
+    let booksStoreDelete = deleteTransaction.objectStore('books');
+    /** @type{IDBRequest} */
+    let deleteRequest;
+
+    if (isNaN(id)) {
+      id.forEach(idNum => { deleteRequest = booksStoreDelete.delete(idNum) });//For future, use the Key range feature to select the specific keys
+    } else {
+      //Number
+      deleteRequest = booksStoreDelete.delete(id);
+    }
+    deleteRequest.onsuccess = e => {
+      Notification.show(html`Successfully Deleted - ${deleteRequest.result}`, { theme: "success" })
+      this.getAllItemsFromStore(booksStoreDelete);
+      this.requestUpdate();
+
+    }
+  }
+
+  //UI Event Listener Helpers
+
+  /**
+   * A function to handle the list box selection changing.
+   * @param {MouseEvent} event 
+   */
+  itemsChanged(event) {
+
+    console.log(event);
+    console.log(event.detail);
+    this.selectedBooks = event.detail.value;
+
   }
 
   static get styles() {
