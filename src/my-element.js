@@ -1,5 +1,10 @@
 import { LitElement, css, html } from "lit";
 import "@vaadin/button";
+import "@vaadin/text-area";
+import '@vaadin/item';
+import '@vaadin/list-box';
+
+
 import { Notification } from "@vaadin/notification";
 import litLogo from "./assets/lit.svg";
 
@@ -22,6 +27,10 @@ export class MyElement extends LitElement {
        */
       count: { type: Number },
       isDBReady: { type: Boolean },
+      /**
+       * @type {Array}
+       */
+      bookList: { type: Array }
     };
   }
 
@@ -31,6 +40,7 @@ export class MyElement extends LitElement {
     this.count = 0;
     this.isDBReady = false;
     this.db = null;
+    this.bookList = [];
   }
 
   render() {
@@ -46,17 +56,19 @@ export class MyElement extends LitElement {
       <slot></slot>
       <div class="card">
         <button @click=${this._onClick} part="button">
-          Database is <span class="${
-            this.isDBReady ? "dbReady" : "dbNotReady"
-          }">${this.isDBReady ? "ready" : "not ready yet"}.</span>
+          Database is <span class="${this.isDBReady ? "dbReady" : "dbNotReady"
+      }">${this.isDBReady ? "ready" : "not ready yet"}.</span>
         </button>
       </div>
       <div class="card">
-        <vaadin-button @click=${this.save} part="button">
+        <vaadin-button @click=${this.saveToDB} part="button">
           Save Item To DB
         </button>
       </div>
-    `;
+      <vaadin-list-box selected="2">
+      ${this.bookList.map(item => { return html`<vaadin-item>${item.isbn} - ${item.title}</vaadin-item>` })}
+      </vaadin-list-box>
+  `;
   }
 
   _onClick() {
@@ -67,8 +79,7 @@ export class MyElement extends LitElement {
       this.db = openRequest.result;
       this.db.onversionchange = function () {
         this.db.close();
-        Notification.show("Database is outdated, please reload the page.",{theme:"Error"})
-        // alert("Database is outdated, please reload the page.");
+        Notification.show("Database is outdated, please reload the page.", { theme: "error", position: 'top-end' })
       };
 
       this.isDBReady = true;
@@ -81,7 +92,7 @@ export class MyElement extends LitElement {
 
       //Create my Object Store (Table). This can only be done in an 'upgrade needed' event.
       !this.db.objectStoreNames.contains("books") &&
-      this.db.createObjectStore("books", {
+        this.db.createObjectStore("books", {
           keyPath: "isbn",
           autoIncrement: true,
         });
@@ -98,107 +109,150 @@ export class MyElement extends LitElement {
     console.log("Connection Request Opened");
   }
 
-  async save() {
+  async saveToDB() {
     //Lets do some Indexed DB Stuff!
     let transaction = this.db.transaction("books", "readwrite"); // (1)
 
     // get an object store to operate on it
     let books = transaction.objectStore("books"); // (2)
 
+    console.time('AddToStore')
+    this.addToStore(books);
+
+    transaction.oncomplete = function () {
+      console.log("Transaction is complete");
+      Notification.show("Transaction is complete", { position: "bottom-center" })
+      console.timeEnd("AddToStore");
+    }
+
+    //Use already opened transaction
+    this.getAllItemsFromStore(books)
+  }
+
+  /**
+   * 
+   * @param {IDBObjectStore} objectStore 
+   * @param {Object} data 
+   */
+  addToStore(objectStore, data) {
     let book = {
-      id: "js",
-      price: 10,
+      // isbn: 10,
+      title: "Charles Brown Bio",
+      price: Math.floor(Math.random() * 100),
       created: new Date(),
     };
 
-    let request = books.add(book); // (3)
+    let request = objectStore.add(book); // (3)
 
-    if(request){
-      Notification.show("Successfully Added!",{theme:"Contrast"})
+    request.onsuccess = () => {
+      console.info(request.result);
+      Notification.show(`Successfully Added New Book with an ID - ${request.result} `, { duration: 2400, theme: 'success', position: 'bottom-end' })
+    }
+
+    request.onerror = event => {
+      console.error(request.error);
+      Notification.show(`We have an error with the request - ${request.error} `, { duration: 2400, theme: 'error', position: 'bottom-end' })
+      event.preventDefault();
+      event.stopPropagation();
     }
   }
 
-  async addToStore(data) {}
+  /**
+   * 
+   * @param {IDBObjectStore} store 
+   */
+  async getAllItemsFromStore(store) {
+
+    const request = store.getAll();
+
+    request.onsuccess = e =>{
+      console.log("Successfully added");
+      this.bookList = request.result;
+      console.log(this.bookList);
+      this.requestUpdate();
+    }
+  }
+
   static get styles() {
     return css`
       :host {
-        max-width: 1280px;
-        margin: 0 auto;
-        padding: 2rem;
-        text-align: center;
-      }
+  max - width: 1280px;
+  margin: 0 auto;
+  padding: 2rem;
+  text - align: center;
+}
 
       .dbReady {
-        color: green;
-      }
+  color: green;
+}
       .dbReady::after {
-        content: "🙌🏽";
-      }
+  content: "🙌🏽";
+}
       .dbNotReady {
-        color: red;
-      }
+  color: red;
+}
       .logo {
-        height: 6em;
-        padding: 1.5em;
-        will-change: filter;
-      }
+  height: 6em;
+  padding: 1.5em;
+  will - change: filter;
+}
       .logo:hover {
-        filter: drop-shadow(0 0 2em #646cffaa);
-      }
+  filter: drop - shadow(0 0 2em #646cffaa);
+}
       .logo.lit:hover {
-        filter: drop-shadow(0 0 2em #325cffaa);
-      }
+  filter: drop - shadow(0 0 2em #325cffaa);
+}
 
       .card {
-        padding: 2em;
-      }
+  padding: 2em;
+}
 
-      .read-the-docs {
-        color: #888;
-      }
+      .read - the - docs {
+  color: #888;
+}
 
       a {
-        font-weight: 500;
-        color: #646cff;
-        text-decoration: inherit;
-      }
-      a:hover {
-        color: #535bf2;
-      }
+  font - weight: 500;
+  color: #646cff;
+  text - decoration: inherit;
+}
+a:hover {
+  color: #535bf2;
+}
 
       h1 {
-        font-size: 3.2em;
-        line-height: 1.1;
-      }
+  font - size: 3.2em;
+  line - height: 1.1;
+}
 
       button {
-        border-radius: 8px;
-        border: 1px solid transparent;
-        padding: 0.6em 1.2em;
-        font-size: 1em;
-        font-weight: 500;
-        font-family: inherit;
-        background-color: #1a1a1a;
-        cursor: pointer;
-        transition: border-color 0.25s;
-      }
-      button:hover {
-        border-color: #646cff;
-      }
-      button:focus,
-      button:focus-visible {
-        outline: 4px auto -webkit-focus-ring-color;
-      }
+  border - radius: 8px;
+  border: 1px solid transparent;
+  padding: 0.6em 1.2em;
+  font - size: 1em;
+  font - weight: 500;
+  font - family: inherit;
+  background - color: #1a1a1a;
+  cursor: pointer;
+  transition: border - color 0.25s;
+}
+button:hover {
+  border - color: #646cff;
+}
+button: focus,
+  button: focus - visible {
+  outline: 4px auto - webkit - focus - ring - color;
+}
 
-      @media (prefers-color-scheme: light) {
-        a:hover {
-          color: #747bff;
-        }
+@media(prefers - color - scheme: light) {
+  a:hover {
+    color: #747bff;
+  }
         button {
-          background-color: #f9f9f9;
-        }
-      }
-    `;
+    background - color: #f9f9f9;
+  }
+}
+`;
   }
 }
 
